@@ -1,5 +1,15 @@
-import React, { useState, useRef } from "react";
-import { Button } from "@material-ui/core";
+import React, { useState, useRef, useEffect } from "react";
+import { IDB } from "idborm";
+import {
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  ListSubheader,
+  Divider,
+  LinearProgress,
+  Typography
+} from "@material-ui/core";
 
 import AudioPlayer from "./audioPlayer";
 import { useToggle } from "./utils/hooks";
@@ -23,23 +33,77 @@ export default function App() {
     }
   ];
 
+  const AudioDB = IDB.init("AudioDB", 1, { name: "Audio" });
+  const { Audio } = AudioDB.objectStores;
+
   const [showPlayer, toggleShowPlayer] = useToggle(false);
-  const [src, setSrc] = useState<string>(episodes[1].src);
+  const [source, setSrc] = useState<{ src: string; type?: string }>({
+    src: episodes[1].src
+  });
   const [playingEp, setPlayingEp] = useState<{ title: string }>(episodes[1]);
 
   const lastPlayedIndex = useRef<number>(0);
 
-  const handlePlay = (idx = 0) => {
-    setSrc(episodes[idx].src);
+  const [downloadedAudiosKeys, setDownloadedAudiosKeys] = useState<any>([]);
+  const [downloadingBlob, setDownloadingBlob] = useState<{
+    pending: boolean;
+    key?: string;
+  }>({ pending: false });
+
+  const handleSyncDownloadedAudios = async () => {
+    const audioKeys = await Audio.keys();
+
+    setDownloadedAudiosKeys(audioKeys);
+  };
+
+  useEffect(() => {
+    handleSyncDownloadedAudios();
+  }, []);
+
+  const downloadAndStoreInIDB = async (audioURL: string) => {
+    toggleShowPlayer(false);
+    try {
+      setDownloadingBlob({ pending: true, key: audioURL });
+      let res = await fetch(`https://cors-anywhere.herokuapp.com/${audioURL}`);
+
+      const blob = await res.blob();
+
+      await Audio.put(blob, audioURL);
+
+      await handleSyncDownloadedAudios();
+    } catch (e) {
+      console.error(e);
+    }
+
+    setDownloadingBlob({ pending: false });
+  };
+
+  const handlePlay = ({ idx = 0 }) => {
+    setSrc({ src: episodes[idx].src });
     setPlayingEp(episodes[idx]);
     lastPlayedIndex.current = idx;
+  };
+
+  const handlePlayDownloadedAudio = async (audioKey: string) => {
+    // TODO: Violence of Single Responsibilry should be fixed
+
+    const audioBlob = await Audio.get(audioKey);
+
+    const src = URL.createObjectURL(audioBlob);
+    if (src) {
+      setSrc({ src, type: audioBlob.type });
+      setPlayingEp({ title: audioKey });
+      toggleShowPlayer(true);
+    } else {
+      throw new Error("src not found!");
+    }
   };
 
   const handleSkipNext = () => {
     const lpi = lastPlayedIndex.current;
 
     if (lpi + 1 < episodes.length) {
-      handlePlay(lpi + 1);
+      handlePlay({ idx: lpi + 1 });
     }
   };
 
@@ -47,9 +111,9 @@ export default function App() {
     const lpi = lastPlayedIndex.current;
 
     if (lpi - 1 > 0) {
-      handlePlay(lpi - 1);
+      handlePlay({ idx: lpi - 1 });
     } else {
-      handlePlay(0);
+      handlePlay({ idx: 0 });
     }
   };
 
@@ -61,7 +125,7 @@ export default function App() {
 
       {showPlayer && (
         <AudioPlayer
-          src={src}
+          source={source}
           autoplay
           ctx={{
             toggleShowPlayer,
@@ -69,10 +133,36 @@ export default function App() {
             subtitle: "Subtitle",
             image: "https://picsum.photos/200/300",
             handleSkipNext,
-            handleSkipPrevious
+            handleSkipPrevious,
+            downloadAndStoreInIDB
           }}
         />
       )}
+      <Divider />
+      <List
+        component="ul"
+        subheader={<ListSubheader>Downloaded Audios</ListSubheader>}
+        aria-label="secondary mailbox folders"
+      >
+        {downloadedAudiosKeys.map((key: string) => (
+          <ListItem
+            button
+            onClick={() => handlePlayDownloadedAudio(key)}
+            key={key}
+          >
+            <ListItemText primary={key} />
+          </ListItem>
+        ))}
+        {downloadingBlob.pending && (
+          <>
+            <Typography color="secondary">Downloading</Typography>
+            <ListItem button>
+              <ListItemText primary={downloadingBlob.key} />
+            </ListItem>
+            <LinearProgress color="secondary" />
+          </>
+        )}
+      </List>
     </div>
   );
 }

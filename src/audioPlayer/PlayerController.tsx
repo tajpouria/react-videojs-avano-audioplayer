@@ -61,12 +61,13 @@ const useStyles = makeStyles((theme) => ({
 export interface PlayerControllerProps {
   handleSkipNext: () => void;
   handleSkipPrevious: () => void;
+  downloadAndStoreInIDB: (audioURL: string) => void;
 }
 
 const PlayerController = () => {
   const {
     playerState: { player },
-    ctx: { handleSkipNext, handleSkipPrevious },
+    ctx: { handleSkipNext, handleSkipPrevious, downloadAndStoreInIDB },
   } = useContext(PlayerContext);
 
   const [paused, togglePaused] = useToggle(false);
@@ -109,6 +110,13 @@ const PlayerController = () => {
     setPlayBackRateContent(newVal);
     return '';
   };
+
+  const handleDownload = async () => {
+    const audioURL = player!.currentSrc()
+    if(audioURL){
+      await downloadAndStoreInIDB(audioURL)
+    }
+  }
 
   const classes = useStyles();
 
@@ -168,12 +176,12 @@ const PlayerController = () => {
           <BookmarkBorderOutlined className={classes.lowerPlayerIcon} />
         </IconButton>
 
-        <IconButton className={classes.lowerPlayerButton}>
-          <SystemUpdateAltOutlined className={classes.lowerPlayerIcon} />
+        <IconButton onClick={handleDownload} className={classes.lowerPlayerButton}>
+          <SystemUpdateAltOutlined  className={classes.lowerPlayerIcon} />
         </IconButton>
 
         <IconButton className={classes.lowerPlayerButton}>
-          <Brightness2Outlined className={classes.lowerPlayerIcon} />
+          <Brightness2Outlined  className={classes.lowerPlayerIcon} />
         </IconButton>
       </Grid>
 
