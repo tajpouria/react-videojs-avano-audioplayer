@@ -26,11 +26,11 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 export type PlayerProps = {
-  src: string;
+  source: {src: string, type?: string};
   autoplay?: boolean;
 };
 
-const Player = ({ src, ...props }) => {
+const Player = ({ source, ...props }) => {
   const {
     playerState: { player },
     playerDispatch,
@@ -43,7 +43,7 @@ const Player = ({ src, ...props }) => {
       type: PlayerAction.SET_PLAYER,
       payload: videojs(
         videoNode,
-        { sources: [{ src }], ...props },
+        { sources: [source], ...props },
         function onPlayerReady() {},
       ),
     });
@@ -52,8 +52,8 @@ const Player = ({ src, ...props }) => {
   }, []);
 
   useEffect(() => {
-    player?.src(src);
-  }, [src]);
+    player?.src(source.src);
+  }, [source.src]);
 
   const classes = useStyles();
 
